@@ -1,16 +1,18 @@
 #include "qmainwindow.h"
 #include <qbytearray.h>
 #include <qmessagebox.h>
-
-
-
+#include <QFileDialog>
+#include <random>
+#include <algorithm>
+#include <cmath>
+using  namespace std;
 OMapApiTest::OMapApiTest(QWidget *parent)
 	: QMainWindow(parent)
 {
 	ui.setupUi(this);     
-	setWindowTitle(QString("PersonalOMapApiTest"));
+	setWindowTitle(QString::fromLocal8Bit("我的OMapApiTest"));
 	WId wid = this->winId();
-	 
+    
 	g_omapApi.Init((WORD*)APP_CLASS_NAME);
 	//::SetRegistryKey(_T("应用程序向导生成的本地应用程序"));
 	/*WNDCLASS   wc;
@@ -24,9 +26,137 @@ OMapApiTest::OMapApiTest(QWidget *parent)
 	
 }
 
+char* OMapApiTest::CStringToUtf8(CString& strTxt, char* strUtf8, int nBuf)
+{
+	OApiUtf16ToUtf8((WORD*)(LPCTSTR(strTxt)), (BYTE*)strUtf8, nBuf);
+	
+	return strUtf8;
+}
+
+
+void OMapApiTest::DataTrans()
+{
+	GAPCoordTranslate  gtrans;
+	gtrans.SetParaDegree(6);
+	
+	for (int i = 0; i < m_origindata.size(); ++i)
+	{
+		tagOriginData &tag_origin = m_origindata[i];
+		tagMyCoordinate  t_tempcoord;
+		t_tempcoord.trace = tag_origin.trace;
+		t_tempcoord.line = tag_origin.line;
+		QPointF  p1 = gtrans.xyToLoLa(tag_origin._x, tag_origin._y);
+		t_tempcoord.ling = p1.x(); t_tempcoord.lat = p1.y();
+		m_my_coordinates.push_back(t_tempcoord);
+		QString str; str.asprintf("%.6f,%.6f\n", p1.x(), p1.y());
+		ui.textBrowser->insertPlainText(str);
+		m_cdpMap.insert(QPair<int, int>(tag_origin.line, tag_origin.trace), QPair<double,double>(p1.x(), p1.y()));
+	}
+	QString ss;
+	ss.sprintf("一共有%d  个数据点", m_my_coordinates.size());
+	QMessageBox::information(this, QString::fromLocal8Bit("返回结果"),ss.toLocal8Bit() );
+	
+}
+
+
+void OMapApiTest::AlertErrSendOmapMsg(int ret)
+{
+	if (ret >= 0)
+		return;
+	if (ret == OMAP_API_ERR_WND)
+	{
+		AfxMessageBox(_T("没有找到奥维地图程序窗口"));
+	}
+	else if (ret == OMAP_API_ERR_REGISTER)
+	{
+		AfxMessageBox(_T("向奥维地图程序注册失败"));
+	}
+	else if (ret == OMAP_API_ERR_VER)
+	{
+		AfxMessageBox(_T("奥维地图程序版本太低"));
+	}
+	else if (ret == OMAP_API_ERR_ARGV)
+	{
+		AfxMessageBox(_T("参数非法"));
+	}
+	else if (ret == OMAP_API_ERR_NOT_VIP)
+	{
+		AfxMessageBox(_T("当前奥维地图绑定用户不是VIP用户，不支持此API接口"));
+	}
+	else if (ret == OMAP_API_ERR_NOT_VIP5)
+	{
+		AfxMessageBox(_T("当前奥维地图绑定用户不是VIP5或VIP5以上用户，不支持此API接口"));
+	}
+	else if (ret == OMAP_API_ERR_UNLOAD_OBJ)
+	{
+		AfxMessageBox(_T("奥维对象未载入, 请稍候..."));
+	}
+	else if (ret == OMAP_API_ERR_DEAL)
+	{
+		AfxMessageBox(_T("消息处理失败"));
+	}
+	else
+	{
+		AfxMessageBox(_T("未知错误"));
+	}
+}
+
+void OMapApiTest::SetobjectToMap(int idParent)
+{
+	char strUtf8[1000];
+	INT64 idResult = 0;
+	//往指定目录添加一个文件夹
+	CString strName = L"我的文件夹";
+	tagOApiObjGroupV1* pGroup = g_omapApi.NewOmapGroup();
+	strncpy_s(pGroup->strName, CStringToUtf8(strName, strUtf8, sizeof(strUtf8)), sizeof(pGroup->strName));
+	int r = g_omapApi.SetOmapObject(0, pGroup, &idResult, idParent, 0);
+	g_omapApi.FreeOmapObject(pGroup, OMAP_OBJ_TYPE_GROUP);
+	AlertErrSendOmapMsg(r);
+	if (r != 0)
+		return;
+
+	//将奥维地图设为卫星图并转到相关位置上
+	//g_omapApi.SetOmapLevelAndLocationExt(101, 16, 96.2222, 30.1111);
+
+	//往指定目录添加一个标签
+	// char strUtf8[1000];
+	// int r;
+	// INT64 idResult = 0;
+	INT64 tagFileParent = idResult;
+	
+	for (int i = 0; i < min(m_my_coordinates.size(),1000); ++i)
+	{
+		QString s = "p" + i;
+		CString strName;
+		strName.Format(L"p%d", i);
+
+		tagOApiMapSignV1* pSign = g_omapApi.NewOmapSign();
+		strncpy_s(pSign->strName, CStringToUtf8(strName, strUtf8, sizeof(strUtf8)), sizeof(pSign->strName));
+		// string comment = "line:" + m_my_coordinates[i].line;
+		// comment.append("trace:");
+		// comment += m_my_coordinates[i].trace;
+		QString comment;
+		comment.asprintf("line:%d,trace:%d", m_my_coordinates[i].line, m_my_coordinates[i].trace);
+		QByteArray  str = comment.toLocal8Bit();
+		pSign->pstrComment = OApiNewObjectComment(str.data());
+		pSign->lat = m_my_coordinates[i].lat;
+		pSign->lng = m_my_coordinates[i].ling;
+		int temp = 1+ i / 200;
+		if (temp > 50) temp = 1;
+		pSign->iSignPic = temp;
+		pSign->iTxtType = 1;
+		r = g_omapApi.SetOmapObject(0, pSign, &idResult, tagFileParent, 0);
+		g_omapApi.FreeOmapObject(pSign, OMAP_OBJ_TYPE_SIGN);
+	}
+	
+	AlertErrSendOmapMsg(r);
+	if (r != 0)
+		return;
+}
+
 void OMapApiTest::on_pushButton_clicked()
 {
-	myProcess.start("D:\\OvalMap\\omap.exe");
+	myProcess.start("OvalMap\\omap.exe");
 }
 
 //LRESULT OMapApiTest::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
@@ -314,14 +444,38 @@ void OMapApiTest::on_pushButton_clicked()
 
 void OMapApiTest::on_SetTmpSign_clicked()
 {
-	g_omapApi.SetOmapTmpSign(149.12345, 31.23456, false);
-	g_omapApi.SetOmapTmpSign(139.12345, 26.23456, false);
-	g_omapApi.SetOmapTmpSign(159.12345, 17.23456, false);
+	srand(NULL);
+	int deltax = rand() % 30;
+	int deltay = rand() % 50;
+	int coin = rand() % 10;
+	if (coin < 5)
+	{
+		deltax = -deltax;
+		deltay = -deltay;
+	}
+	 g_omapApi.SetOmapTmpSign(40.8934072+deltax, 106.3723076+deltay, false);
+	// g_omapApi.SetOmapTmpSign(32.12345, 126.23456, false);
+	// g_omapApi.SetOmapTmpSign(57.12345, 117.23456, false);
+	
+	
+	
 }
 
 void OMapApiTest::on_GetLatLig_clicked()
 {
 	g_omapApi.SendMessageToOmap(OMAP_WIN_CMD_GET_LATLNG, NULL, 0);
+}
+
+void OMapApiTest::on_ReadFile_clicked()
+{
+	QString fileName = QFileDialog::getOpenFileName(this, QString::fromLocal8Bit("选择文件"), "C:\\Users\\AngusKF\\Desktop", tr("TXT(*.txt)")); //选择路径
+
+	TxtFileRead(fileName);
+}
+
+void OMapApiTest::on_patchDataPush_clicked()
+{
+	SetobjectToMap(0);
 }
 
 //LRESULT QT_WIN_CALLBACK OMapApiTest::QtWndProc( UINT message, WPARAM wParam, LPARAM lParam)
@@ -346,10 +500,10 @@ void OMapApiTest::on_GetLatLig_clicked()
 //	return QtWndProc( message, wParam, lParam);
 //}
 
-bool OMapApiTest::winEvent(MSG * param, long * result)
-{	
-	return false;
-}
+// bool OMapApiTest::winEvent(MSG * param, long * result)
+// {	
+// 	return false;
+// }
 
 //LRESULT QT_WIN_CALLBACK OMapApiTest::qt_internal_proc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp)
 //{
@@ -387,7 +541,7 @@ bool OMapApiTest::nativeEvent(const QByteArray &eventType, void* message, long *
 	
 	if (param->message== WM_COPYDATA || param->wParam == OMAP_WIN_API_FLAG )
 	{
-		COPYDATASTRUCT* pcd = (COPYDATASTRUCT*)param->lParam;
+		COPYDATASTRUCT* pcd = reinterpret_cast<COPYDATASTRUCT*>(param->lParam);
 		int nAppId = (pcd->dwData >> 16) & 0xffff;
 		int nCmdId = pcd->dwData & 0xffff;
 
@@ -397,10 +551,10 @@ bool OMapApiTest::nativeEvent(const QByteArray &eventType, void* message, long *
 			memcpy(&oll, pcd->lpData, sizeof(oll));
 
 			QString ss;
-			ss.asprintf("%lf,%lf", oll.lat, oll.lng);
-
+			ss.sprintf("%lf,%lf", oll.lat, oll.lng);
+			
 			//ss.Format(L"%lf,%lf", oll.lat, oll.lng);
-			QMessageBox::information(this, QString("返回结果"), ss);
+			QMessageBox::information(this, QString::fromLocal8Bit("返回结果"), ss);
 			*result = 1;
 			return true;
 		}
@@ -434,6 +588,43 @@ bool OMapApiTest::nativeEvent(UINT message, WPARAM wParam, LPARAM lParam)
 	
 	return nativeEvent(message, wParam, lParam);
 }*/
+
+/**
+ * \brief 简单txt文件读取
+ * \param fileName 
+ */
+void OMapApiTest::TxtFileRead(const QString fileName)
+{
+	srand(NULL);
+	if (fileName.isEmpty())     //如果未选择文件便确认，即返回
+		return;
+	QFile file(fileName);
+	if(!file.open(QIODevice::ReadOnly | QIODevice::Text))
+	{
+		qDebug() << "Can't open the file!" << endl;
+		return;
+	}
+
+	QTextStream stream(&file);
+	while (!stream.atEnd())
+	{
+		QString line_in = stream.readLine();
+		QString line =line_in.simplified();
+		QStringList stringlist = line.split(QRegExp("\\s+"));
+		tagOriginData tag_origintemp;
+		tag_origintemp.line = std::rand() % 100;
+		tag_origintemp.trace = std::rand() % 1000;
+		
+		tag_origintemp._x = stringlist[0].toDouble();
+		tag_origintemp._y = stringlist[1].toDouble();
+		tag_origintemp._h = stringlist[2].toDouble();
+		m_origindata.push_back(tag_origintemp);
+	}
+
+	file.close();
+	DataTrans();
+	
+}
 
 CString OMapApiTest::Utf8ToCString(const char* strUtf8)
 {

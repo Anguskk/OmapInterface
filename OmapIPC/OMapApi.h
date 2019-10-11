@@ -1,11 +1,12 @@
 #pragma once
 //CLI引用的时候需要 2019.3.22
+
 #if defined WIN32 && !defined WIN10
 //#include <Windows.h>
-#include <afxwin.h>
-#include <afxcmn.h>
+//#include <afxwin.h>
+//#include <afxcmn.h>
 #include "stdafx.h"
-#include <afx.h>
+//#include <afx.h>
 #endif
 
 #ifndef OMAP_WIN_API_H

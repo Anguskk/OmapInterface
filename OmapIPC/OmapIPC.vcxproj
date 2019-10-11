@@ -24,6 +24,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>Dynamic</UseOfMfc>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup Condition="'$(QtMsBuild)'=='' or !Exists('$(QtMsBuild)\qt.targets')">
@@ -120,6 +121,13 @@
     </QtRcc>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="gapcoordinatetranslate.cpp" />
+    <ClCompile Include="GeneratedFiles\qrc_qmainwindow.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="OMapApi.cpp" />
     <ClCompile Include="qmainwindow.cpp" />
@@ -138,6 +146,8 @@
     <QtRcc Include="qmainwindow.qrc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="gapcoordinatetranslate.h" />
+    <ClInclude Include="GeneratedFiles\ui_qmainwindow.h" />
     <ClInclude Include="OMapApi.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />

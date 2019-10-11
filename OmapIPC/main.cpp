@@ -1,9 +1,14 @@
 #include "qmainwindow.h"
 #include <QtWidgets/QApplication>
+#include <qtextcodec.h>
+#include <QString>
 //#include <qstringlist.h>
 int main(int argc, char *argv[])
 {
+	
+	//QTextCodec::setCodecForCStrings(QTextCodec::codecForName("GBK"));
 	QApplication app(argc, argv);
+	QTextCodec::setCodecForLocale(QTextCodec::codecForLocale());
 	
 	//QProcess *qp1=new QProcess;
 	//QString program = "C:\\Windows\\System32\\cmd.exe";
